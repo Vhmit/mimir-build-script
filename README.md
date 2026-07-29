@@ -2,6 +2,7 @@
 
 - Checks dependencies before starting the build.
 - Uses the `-z` option if you prefer it to be packed with AnyKernel.
+- Uses the `-z` + `-ksu` option in case you want to distinguish the file using KernelSU.
 - Uploads error logs to rustbin.
 - Uploads the packed kernel to gofile if you prefer.
 - Sends you the sha256sum for verification.

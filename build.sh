@@ -22,14 +22,26 @@ trap handle_interrupt SIGINT
 
 # Device
 DEVICE="$1"
-ZIP_FLAG="$2"
+shift
+
+# Flags handling
+ZIP_FLAG=false
+KSU_FLAG=false
+
+for arg in "$@"; do
+    case "$arg" in
+        -z)   ZIP_FLAG=true ;;
+        -ksu) KSU_FLAG=true ;;
+    esac
+done
 
 # Output usage help
 if [ -z "$DEVICE" ]; then
   echo -e "${RED}Error: No device specified!${NC}"
-  echo -e "Usage: ./build.sh <device_name> [-z]"
+  echo -e "Usage: ./build.sh <device_name> [-z] [-ksu]"
   echo -e "Example: ./build.sh device (just compiles)"
-  echo -e "Example: ./build.sh device -z (compiles and generates the zip file.)"
+  echo -e "Example: ./build.sh device -z (compiles and generates zip)"
+  echo -e "Example: ./build.sh device -z -ksu (compiles and generates KSU zip)"
   exit 1
 fi
 
@@ -62,7 +74,14 @@ objdir="${kernel_dir}/out"
 anykernel=$HOME/anykernel
 toolchain_dir="${kernel_dir}/gcc"
 kernel_name="Mimir"
-zip_name="$kernel_name-${DEVICE}-${TM}.zip"
+
+# Adjust zip filename if KSU flag is present along with ZIP flag
+if [ "$ZIP_FLAG" = true ] && [ "$KSU_FLAG" = true ]; then
+    zip_name="${kernel_name}-KSU-${DEVICE}-${TM}.zip"
+else
+    zip_name="${kernel_name}-${DEVICE}-${TM}.zip"
+fi
+
 LOG_FILE="${PWD}/build_log.txt"
 
 # Compiler Setup (GCC)
@@ -182,7 +201,7 @@ check_deps
 
 # Prompt for Gofile upload before compilation starts (if -z flag is present)
 DO_UPLOAD=false
-if [ "$ZIP_FLAG" == "-z" ]; then
+if [ "$ZIP_FLAG" = true ]; then
     echo -ne "${YLW}Do you want to upload the final ZIP to Gofile after compilation? (y/N): ${NC}"
     read -r UPLOAD_CHOICE
     case "$UPLOAD_CHOICE" in
@@ -194,6 +213,8 @@ if [ "$ZIP_FLAG" == "-z" ]; then
             echo -e "${YLW}Upload disabled. The ZIP will only be generated locally.${NC}"
             ;;
     esac
+elif [ "$KSU_FLAG" = true ]; then
+    echo -e "${YLW}Info: Flag -ksu passed without -z. Packaging/ZIP creation skipped.${NC}"
 fi
 
 clean_all
@@ -207,7 +228,7 @@ BUILD_TIME="$((DIFF / 60)) minute(s) and $((DIFF % 60)) second(s)"
 
 # Only run completion (AnyKernel3) if the -z flag is present
 if [ -f "${objdir}/arch/arm64/boot/Image.gz-dtb" ]; then
-    if [ "$ZIP_FLAG" == "-z" ]; then
+    if [ "$ZIP_FLAG" = true ]; then
         completion
     else
         echo -e "\n${YLW}Info: Flag -z not detected. Compilation finished without generating ZIP.${NC}"
