@@ -118,12 +118,25 @@ clean_all() {
 make_defconfig() {
     SECONDS=0
     echo -e "${LGR}########### Generating Defconfig ############${NC}"
-    # English: Ensure the config file exists before trying to make
+
     if [ ! -f "arch/arm64/configs/${DEVICE}_defconfig" ]; then
         echo -e "${RED}Error: ${DEVICE}_defconfig not found!${NC}"
         exit 1
     fi
-    make -s O="${objdir}" ARCH=$ARCH CC=$CC CROSS_COMPILE=$CROSS_COMPILE CROSS_COMPILE_ARM32=$CROSS_COMPILE_ARM32 ${DEVICE}_defconfig -j$(nproc --all)
+
+    # Generates the base defconfig
+    make -s O="${objdir}" ARCH=$ARCH ${DEVICE}_defconfig
+
+    # Applies DroidSpaces config if requested by user
+    if [ "$ENABLE_DROIDSPACES" = true ]; then
+        if [ -f "build.config.droidspaces" ]; then
+            echo -e "${LGR}Applying extra config for DroidSpaces...${NC}"
+            cat build.config.droidspaces >> "${objdir}/.config"
+            make -s O="${objdir}" ARCH=$ARCH olddefconfig
+        else
+            echo -e "${RED}Error: build.config.droidspaces not found! Continuing with base defconfig...${NC}"
+        fi
+    fi
 }
 
 compile() {
@@ -199,9 +212,24 @@ completion() {
 # Execution
 check_deps
 
-# Prompt for Gofile upload before compilation starts (if -z flag is present)
 DO_UPLOAD=false
+ENABLE_DROIDSPACES=false
+
 if [ "$ZIP_FLAG" = true ]; then
+    # Prompt for DroidSpaces
+    echo -ne "${YLW}Do you want to build this kernel with DroidSpaces support? (y/N): ${NC}"
+    read -r DROID_CHOICE
+    case "$DROID_CHOICE" in
+        [yY][eE][sS]|[yY])
+            ENABLE_DROIDSPACES=true
+            echo -e "${LGR}DroidSpaces support enabled.${NC}"
+            ;;
+        *)
+            echo -e "${YLW}DroidSpaces support disabled.${NC}"
+            ;;
+    esac
+
+    # Prompt for Gofile upload
     echo -ne "${YLW}Do you want to upload the final ZIP to Gofile after compilation? (y/N): ${NC}"
     read -r UPLOAD_CHOICE
     case "$UPLOAD_CHOICE" in
