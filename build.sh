@@ -139,6 +139,15 @@ make_defconfig() {
     fi
 }
 
+compile_headers() {
+    echo -e "${YLW}########### Compiling Headers ############${NC}"
+    local HDR_PATH="${objdir}/arch/arm64/boot/usr"
+    make -j$(nproc --all) O=${objdir} ARCH=${ARCH} CC=${CC} CROSS_COMPILE=$CROSS_COMPILE CROSS_COMPILE_ARM32=$CROSS_COMPILE_ARM32 \
+         INSTALL_HDR_PATH="$HDR_PATH" headers_install
+    find "$HDR_PATH" -type f \( -name ".install" -o -name "..install.cmd" \) -delete
+    echo -e "${LGR}Compiled and cleaned headers in: $HDR_PATH${NC}"
+}
+
 compile() {
     echo -e "${LGR}########### Compiling kernel ############${NC}"
     local TEMP_LOG=$(mktemp)
@@ -214,6 +223,7 @@ check_deps
 
 DO_UPLOAD=false
 ENABLE_DROIDSPACES=false
+COMPILE_HDR=false
 
 if [ "$ZIP_FLAG" = true ]; then
     # Prompt for DroidSpaces
@@ -241,7 +251,22 @@ if [ "$ZIP_FLAG" = true ]; then
             echo -e "${YLW}Upload disabled. The ZIP will only be generated locally.${NC}"
             ;;
     esac
-elif [ "$KSU_FLAG" = true ]; then
+else
+    # Prompt for compile headers
+    echo -ne "${YLW}Do you want to compile headers? (y/N): ${NC}"
+    read -r HDR_CHOICE
+    case "$HDR_CHOICE" in
+        [yY][eE][sS]|[yY])
+            COMPILE_HDR=true
+            echo -e "${LGR}Header compilation enabled.${NC}"
+            ;;
+        *)
+            echo -e "${YLW}Header compilation skipped.${NC}"
+            ;;
+    esac
+fi
+
+if [ "$KSU_FLAG" = true ] && [ "$ZIP_FLAG" = false ]; then
     echo -e "${YLW}Info: Flag -ksu passed without -z. Packaging/ZIP creation skipped.${NC}"
 fi
 
@@ -260,6 +285,9 @@ if [ -f "${objdir}/arch/arm64/boot/Image.gz-dtb" ]; then
         completion
     else
         echo -e "\n${YLW}Info: Flag -z not detected. Compilation finished without generating ZIP.${NC}"
+        if [ "$COMPILE_HDR" = true ]; then
+            compile_headers
+        fi
         echo -e "The generated files are located in: ${objdir}/arch/arm64/boot/"
     fi
 
