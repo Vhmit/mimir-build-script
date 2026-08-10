@@ -48,21 +48,13 @@ fi
 # Dependency Check
 check_deps() {
     echo -e "${YLW}########### Checking Dependencies ############${NC}"
-    local deps=("zip" "curl" "git" "make" "python3" "sha256sum" "jq")
+    local deps=("bc" "zip" "curl" "git" "make" "python3" "sha256sum" "jq" "perl")
     for dep in "${deps[@]}"; do
         if ! command -v "$dep" &> /dev/null; then
             echo -e "${RED}Error: $dep is not installed. Please install it to continue.${NC}"
             exit 1
         fi
     done
-
-    # Check for 'python' command (needed for the GCC wrapper)
-    if ! command -v python &> /dev/null; then
-        echo -e "${YLW}Warning: 'python' command not found. Creating local symlink to python3...${NC}"
-        mkdir -p "/tmp/bin"
-        ln -sf "$(command -v python3)" "/tmp/bin/python"
-        export PATH="/tmp/bin:$PATH"
-    fi
     echo -e "${LGR}Dependencies: OK!${NC}"
 }
 
@@ -72,7 +64,7 @@ TM=$(date '+%Y%m%d-%H%M')
 kernel_dir="${PWD}"
 objdir="${kernel_dir}/out"
 anykernel=$HOME/anykernel
-toolchain_dir="${kernel_dir}/gcc"
+toolchain_dir="${kernel_dir}/tc"
 kernel_name="Mimir"
 
 # Adjust zip filename if KSU flag is present along with ZIP flag
@@ -84,21 +76,22 @@ fi
 
 LOG_FILE="${PWD}/build_log.txt"
 
-# Compiler Setup (GCC)
+# Compiler Setup
 export PATH="$toolchain_dir/bin:$PATH"
 if ! [ -d "$toolchain_dir" ]; then
-    echo "GCC not found! Cloning to $toolchain_dir..."
-    if ! git clone --depth=1 --single-branch -b 4.9.x-2015 https://github.com/Vhmit/platform_prebuilts_gcc "$toolchain_dir"; then
+    echo "AOSP clang not found! Cloning to $toolchain_dir..."
+    if ! git clone --depth=1 -b 14 https://gitlab.com/ThankYouMario/android_prebuilts_clang-standalone "$toolchain_dir"; then
         echo "Cloning failed! Aborting..."
         exit 1
     fi
 fi
 
-echo -e "${LGR}######### Compiler Version #########${NC}"
-GCC_FULL=$($toolchain_dir/bin/aarch64-linux-android-gcc --version 2>&1 | head -n 1)
-GCC_FINAL=$(echo "$GCC_FULL" | sed 's/^[^(]*//')
-[ -z "$GCC_FINAL" ] && GCC_FINAL="$GCC_FULL"
-echo -e "${YLW}Using: ${GCC_FINAL}${NC}"
+echo -e "${LGR}######### Clang version #########${NC}"
+CLANG_FULL=$($toolchain_dir/bin/clang --version | head -n 1)
+VER=$(echo "$CLANG_FULL" | grep -oE "[0-9]+\.[0-9]+\.[0-9]+")
+REV=$(echo "$CLANG_FULL" | grep -oE "based on r[0-9]+")
+CLANG_VER="$VER ($REV)"
+echo -e "${YLW}Clang version: ${CLANG_VER}${NC}"
 
 # Exports
 export CONFIG_FILE="${DEVICE}_defconfig"
@@ -106,9 +99,6 @@ export ARCH=arm64
 export SUBARCH=arm64
 export KBUILD_BUILD_HOST=viktor
 export KBUILD_BUILD_USER=vhmit
-export CROSS_COMPILE="${toolchain_dir}/bin/aarch64-linux-android-"
-export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
-export CC="${toolchain_dir}/bin/aarch64-linux-android-gcc"
 
 clean_all() {
     echo -e "${YLW}########### Cleaning Output Directory ############${NC}"
@@ -125,7 +115,7 @@ make_defconfig() {
     fi
 
     # Generates the base defconfig
-    make -s O="${objdir}" ARCH=$ARCH ${DEVICE}_defconfig
+    make -s O="${objdir}" ARCH=$ARCH CC=clang ${DEVICE}_defconfig LLVM=1 LLVM_IAS=1
 
     # Applies DroidSpaces config if requested by user
     if [ "$ENABLE_DROIDSPACES" = true ]; then
@@ -142,7 +132,7 @@ make_defconfig() {
 compile_headers() {
     echo -e "${YLW}########### Compiling Headers ############${NC}"
     local HDR_PATH="${objdir}/arch/arm64/boot/usr"
-    make -j$(nproc --all) O=${objdir} ARCH=${ARCH} CC=${CC} CROSS_COMPILE=$CROSS_COMPILE CROSS_COMPILE_ARM32=$CROSS_COMPILE_ARM32 \
+    make -j$(nproc --all) O=${objdir} ARCH=${ARCH} CC=clang LLVM=1 LLVM_IAS=1 \
          INSTALL_HDR_PATH="$HDR_PATH" headers_install
     find "$HDR_PATH" -type f \( -name ".install" -o -name "..install.cmd" \) -delete
     echo -e "${LGR}Compiled and cleaned headers in: $HDR_PATH${NC}"
@@ -152,7 +142,7 @@ compile() {
     echo -e "${LGR}########### Compiling kernel ############${NC}"
     local TEMP_LOG=$(mktemp)
     set -o pipefail
-    make -j$(nproc --all) O="${objdir}" ARCH=${ARCH} CC=${CC} CROSS_COMPILE=$CROSS_COMPILE CROSS_COMPILE_ARM32=$CROSS_COMPILE_ARM32 KCFLAGS="-fno-use-linker-plugin" HOSTCFLAGS="-fcommon" 2>&1 | tee "$TEMP_LOG"
+    make -j$(nproc --all) O="${objdir}" ARCH=${ARCH} CC=clang LD=ld.lld AS=llvm-as AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- LLVM=1 LLVM_IAS=1 2>&1 | tee "$TEMP_LOG"
 
     local exit_status=$?
     set +o pipefail

@@ -11,7 +11,7 @@
 ## How to use
 
 ```
-wget https://raw.githubusercontent.com/Vhmit/mimir-build-script/v3.x-gcc/build.sh
+wget https://raw.githubusercontent.com/Vhmit/mimir-build-script/v4.x-clang/build.sh
 ```
 
 ```
