@@ -48,7 +48,7 @@ fi
 # Dependency Check
 check_deps() {
     echo -e "${YLW}########### Checking Dependencies ############${NC}"
-    local deps=("zip" "curl" "git" "make" "python3" "sha256sum" "jq")
+    local deps=("zip" "curl" "git" "make" "python3" "sha256sum" "jq" "perl" "bc")
     for dep in "${deps[@]}"; do
         if ! command -v "$dep" &> /dev/null; then
             echo -e "${RED}Error: $dep is not installed. Please install it to continue.${NC}"
