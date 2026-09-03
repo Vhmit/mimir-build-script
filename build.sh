@@ -80,7 +80,7 @@ LOG_FILE="${PWD}/build_log.txt"
 export PATH="$toolchain_dir/bin:$PATH"
 if ! [ -d "$toolchain_dir" ]; then
     echo "AOSP clang not found! Cloning to $toolchain_dir..."
-    if ! git clone --depth=1 -b 14 https://gitlab.com/ThankYouMario/android_prebuilts_clang-standalone "$toolchain_dir"; then
+    if ! git clone --depth=1 https://github.com/LineageOS/android_prebuilts_clang_kernel_linux-x86_clang-r416183b "$toolchain_dir"; then
         echo "Cloning failed! Aborting..."
         exit 1
     fi
